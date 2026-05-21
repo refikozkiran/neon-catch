@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Neon Catch</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --cyan: #00f5ff;
+    --pink: #ff006e;
+    --purple: #bf00ff;
+    --gold: #ffd700;
+    --red: #ff2020;
+    --green: #00ff88;
+    --bg: #03010a;
+    --panel: rgba(10,5,30,0.85);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; touch-action:none; -webkit-user-select:none; user-select:none; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #game-wrapper {
+    position: relative;
+    width: min(420px, 100vw);
+    height: min(780px, 100vh);
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 110%, #1a0050 0%, #080018 55%, #03010a 100%);
+  }
+
+  /* ===== CANVAS ===== */
+  #gameCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  /* ===== CITY SILHOUETTE ===== */
+  .city {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 180px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ===== HUD ===== */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 14px 18px 0;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .hud-box {
+    background: var(--panel);
+    border: 1px solid rgba(0,245,255,0.2);
+    border-radius: 12px;
+    padding: 6px 12px;
+    backdrop-filter: blur(8px);
+  }
+
+  #score-display {
+    font-family: 'Orbitron', monospace;
+    font-size: 38px;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 20px var(--cyan), 0 0 40px var(--cyan);
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 20;
+  }
+
+  .hud-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .hud-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  #best-val { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+  #coins-val { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+
+  /* ===== COMBO ===== */
+  #combo-display {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #combo-text {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--cyan);
+    text-shadow: 0 0 15px var(--cyan), 0 0 30px var(--cyan);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+    white-space: nowrap;
+  }
+
+  #combo-text.show {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* ===== FEEDBACK TEXT ===== */
+  #feedback {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    pointer-events: none;
+    opacity: 0;
+    text-shadow: 0 0 20px currentColor;
+    transition: none;
+    white-space: nowrap;
+  }
+
+  /* ===== POWER-UP INDICATOR ===== */
+  #powerup-bar {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .pu-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border: 2px solid;
+    animation: pu-pulse 1s infinite;
+  }
+
+  @keyframes pu-pulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 50%, rgba(20,0,60,0.95) 0%, rgba(3,1,10,0.98) 100%);
+    backdrop-filter: blur(10px);
+  }
+
+  .screen.hidden { display: none; }
+
+  .logo-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 50%, var(--pink) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    line-height: 1;
+    margin-bottom: 6px;
+    filter: drop-shadow(0 0 20px var(--cyan));
+  }
+
+  .logo-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(0,245,255,0.6);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .neon-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--bg);
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    border: none;
+    border-radius: 50px;
+    padding: 16px 48px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    box-shadow: 0 0 30px var(--cyan), 0 0 60px rgba(0,245,255,0.3);
+    transition: transform 0.1s, box-shadow 0.2s;
+    margin: 8px;
+  }
+
+  .neon-btn:active { transform: scale(0.96); }
+
+  .neon-btn.secondary {
+    background: transparent;
+    color: var(--cyan);
+    border: 2px solid var(--cyan);
+    box-shadow: 0 0 15px rgba(0,245,255,0.3);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 20px 0 30px;
+    width: 280px;
+  }
+
+  .stat-card {
+    background: rgba(0,245,255,0.05);
+    border: 1px solid rgba(0,245,255,0.2);
+    border-radius: 12px;
+    padding: 14px;
+    text-align: center;
+  }
+
+  .stat-card .label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .stat-card .value {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* ring legend */
+  .ring-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 12px 0 24px;
+    max-width: 300px;
+  }
+
+  .ring-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .ring-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid;
+    flex-shrink: 0;
+  }
+
+  /* ===== CANVAS stars / particles handled in JS ===== */
+
+  /* ===== SHAKE ===== */
+  @keyframes shake {
+    0%,100% { transform: translate(0,0); }
+    20% { transform: translate(-6px,2px); }
+    40% { transform: translate(6px,-2px); }
+    60% { transform: translate(-4px,3px); }
+    80% { transform: translate(4px,-3px); }
+  }
+
+  .shaking { animation: shake 0.3s ease; }
+
+  /* ===== CONTROL HINT ===== */
+  #control-hint {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1px;
+    z-index: 20;
+    white-space: nowrap;
+  }
+
+  /* scrolling neon lines background */
+  #bg-lines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+  <div id="bg-lines"></div>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-box">
+      <div class="hud-label">Best</div>
+      <div class="hud-val" id="best-val">0</div>
+    </div>
+    <div id="score-display">0</div>
+    <div class="hud-box">
+      <div class="hud-label">Coins</div>
+      <div class="hud-val" id="coins-val">💎 0</div>
+    </div>
+  </div>
+
+  <div id="combo-display">
+    <div id="combo-text">x2 COMBO</div>
+  </div>
+
+  <div id="feedback"></div>
+  <div id="powerup-bar"></div>
+  <div id="control-hint">← KAYDIR →</div>
+
+  <!-- START SCREEN -->
+  <div class="screen" id="start-screen">
+    <div class="logo-title">NEON<br>CATCH</div>
+    <div class="logo-sub">by Refo Games</div>
+    <div class="ring-legend">
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#00f5ff;box-shadow:0 0 6px #00f5ff"></div> Normal</div>
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#ff006e;box-shadow:0 0 6px #ff006e"></div> Normal</div>
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#bf00ff;box-shadow:0 0 6px #bf00ff"></div> x2 Combo</div>
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#ffd700;box-shadow:0 0 6px #ffd700"></div> +Coin</div>
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#ff2020;box-shadow:0 0 6px #ff2020"></div> ⚠ Sahte!</div>
+      <div class="ring-legend-item"><div class="ring-dot" style="border-color:#00ff88;box-shadow:0 0 6px #00ff88"></div> Manyetik</div>
+    </div>
+    <button class="neon-btn" onclick="startGame()">OYNA</button>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div class="screen hidden" id="gameover-screen">
+    <div class="logo-title" style="font-size:32px">GAME<br>OVER</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Skor</div>
+        <div class="value" id="go-score" style="color:var(--cyan)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">En Yüksek</div>
+        <div class="value" id="go-best" style="color:var(--gold)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Max Combo</div>
+        <div class="value" id="go-combo" style="color:var(--purple)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Coins</div>
+        <div class="value" id="go-coins" style="color:var(--gold)">0</div>
+      </div>
+    </div>
+    <button class="neon-btn" onclick="startGame()">TEKRAR</button>
+    <button class="neon-btn secondary" onclick="showStart()" style="margin-top:4px">MENÜ</button>
+  </div>
+</div>
+
+<script>
+/* =============================================
+   NEON CATCH — Full Game Engine
+   ============================================= */
+
+const wrapper = document.getElementById('game-wrapper');
+const canvas  = document.getElementById('gameCanvas');
+const ctx     = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = wrapper.clientWidth;
+  H = canvas.height = wrapper.clientHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+/* ---- Audio Context ---- */
+let audioCtx;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type='sine', dur=0.08, vol=0.3, delay=0) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime + delay);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ac.currentTime + delay + dur);
+    gain.gain.setValueAtTime(vol, ac.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + delay + dur);
+    osc.start(ac.currentTime + delay);
+    osc.stop(ac.currentTime + delay + dur + 0.01);
+  } catch(e) {}
+}
+
+function playCatch(combo) {
+  const base = 300 + Math.min(combo * 40, 500);
+  playTone(base, 'sine', 0.12, 0.35);
+  playTone(base * 1.5, 'triangle', 0.08, 0.15, 0.03);
+}
+function playPerfect() {
+  [600,800,1000,1200].forEach((f,i) => playTone(f,'sine',0.1,0.3,i*0.04));
+}
+function playMiss() {
+  playTone(150, 'sawtooth', 0.2, 0.4);
+  playTone(100, 'square',   0.15, 0.2, 0.05);
+}
+function playComboBreak() {
+  playTone(200, 'sawtooth', 0.3, 0.5);
+}
+function playPowerUp() {
+  [400,600,900].forEach((f,i) => playTone(f,'triangle',0.15,0.35,i*0.06));
+}
+
+/* ---- Game State ---- */
+let state = 'start'; // 'playing', 'gameover'
+let score=0, best=parseInt(localStorage.getItem('nc_best')||'0'), coins=parseInt(localStorage.getItem('nc_coins')||'0');
+let combo=0, maxCombo=0, sessionCoins=0;
+let lives=3;
+let gameSpeed=1, speedTimer=0;
+let magnetActive=false, magnetTimer=0;
+let freezeActive=false, freezeTimer=0;
+let frameCount=0;
+let rings=[], particles=[], floatingTexts=[], stars=[];
+
+/* ---- Catcher ---- */
+const catcher = {
+  x: 0, y: 0,
+  w: 80, h: 30,
+  targetX: 0,
+  glow: 0,
+  magnetGlow: 0
+};
+
+/* ---- Input ---- */
+let pointerDown=false, pointerX=0, lastPointerX=0, catcherStartX=0;
+
+wrapper.addEventListener('pointerdown', e => {
+  if (state !== 'playing') return;
+  pointerDown = true;
+  pointerX = lastPointerX = e.clientX - wrapper.getBoundingClientRect().left;
+  catcherStartX = catcher.x;
+  getAudio(); // unlock
+});
+wrapper.addEventListener('pointermove', e => {
+  if (!pointerDown || state !== 'playing') return;
+  const cx = e.clientX - wrapper.getBoundingClientRect().left;
+  const dx = cx - pointerX;
+  catcher.targetX = Math.max(catcher.w/2, Math.min(W - catcher.w/2, catcherStartX + dx));
+});
+wrapper.addEventListener('pointerup', () => { pointerDown = false; });
+wrapper.addEventListener('pointercancel', () => { pointerDown = false; });
+
+/* ---- Stars ---- */
+function initStars() {
+  stars = [];
+  for (let i=0;i<120;i++) {
+    stars.push({ x: Math.random()*W, y: Math.random()*H,
+      r: Math.random()*1.5+0.3,
+      a: Math.random(),
+      speed: Math.random()*0.3+0.05 });
+  }
+}
+
+/* ---- Ring types ---- */
+const RING_TYPES = {
+  cyan:   { color:'#00f5ff', glow:'#00f5ff', label:'',         weight:30 },
+  pink:   { color:'#ff006e', glow:'#ff006e', label:'',         weight:30 },
+  purple: { color:'#bf00ff', glow:'#bf00ff', label:'x2',       weight:12 },
+  gold:   { color:'#ffd700', glow:'#ffd700', label:'💎',       weight:10 },
+  red:    { color:'#ff2020', glow:'#ff3333', label:'⚠',        weight:10 },
+  green:  { color:'#00ff88', glow:'#00ff88', label:'🧲',       weight:8  },
+};
+
+function weightedType() {
+  const total = Object.values(RING_TYPES).reduce((s,t)=>s+t.weight,0);
+  let r = Math.random()*total;
+  for (const [k,v] of Object.entries(RING_TYPES)) {
+    r -= v.weight;
+    if (r<=0) return k;
+  }
+  return 'cyan';
+}
+
+function spawnRing() {
+  const type = weightedType();
+  const rt = RING_TYPES[type];
+  const margin = 60;
+  const x = margin + Math.random() * (W - margin*2);
+  const speed = (1.8 + Math.random()*0.8) * gameSpeed;
+  rings.push({
+    x, y: -30,
+    rx: 34, ry: 10,   // ellipse radii for 3D look
+    speed,
+    type, color: rt.color, glow: rt.glow,
+    label: rt.label,
+    rotation: 0,
+    caught: false,
+    missed: false,
+    alpha: 1,
+    scale: 1,
+    trail: []
+  });
+}
+
+/* ---- Particles ---- */
+function burst(x, y, color, count=14) {
+  for (let i=0;i<count;i++) {
+    const angle = Math.random()*Math.PI*2;
+    const speed = Math.random()*5+2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed - 2,
+      color,
+      life: 1, decay: 0.03+Math.random()*0.03,
+      r: Math.random()*4+2
+    });
+  }
+}
+
+function floatText(x, y, text, color, size=22) {
+  floatingTexts.push({ x, y, text, color, size, life:1, vy:-1.8 });
+}
+
+/* ---- Shake ---- */
+let shakeAmt=0;
+function shake(amt=8) { shakeAmt = Math.max(shakeAmt, amt); }
+
+/* ---- Draw Ring (3D neon) ---- */
+function drawRing(ring) {
+  if (ring.alpha <= 0) return;
+  const { x, y, rx, ry, color, glow, alpha, scale, label, type } = ring;
+  const srx = rx * scale, sry = ry * scale;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+
+  // Glow
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 20 + (type==='gold'?10:0);
+
+  // Vertical glow trails
+  const trailH = 60 + srx;
+  const grad = ctx.createLinearGradient(0, -trailH, 0, 0);
+  grad.addColorStop(0, 'transparent');
+  grad.addColorStop(1, color + '55');
+  ctx.fillStyle = grad;
+  ctx.fillRect(-srx*0.6, -trailH, srx*1.2, trailH);
+
+  // Ellipse ring (3D perspective)
+  ctx.beginPath();
+  ctx.ellipse(0, 0, srx, sry, 0, 0, Math.PI*2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = type === 'gold' ? 4 : 3;
+  ctx.shadowBlur = 25;
+  ctx.stroke();
+
+  // Inner glow ring
+  ctx.beginPath();
+  ctx.ellipse(0, 0, srx*0.85, sry*0.85, 0, 0, Math.PI*2);
+  ctx.strokeStyle = color + '40';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+
+  // Label
+  if (label) {
+    ctx.shadowBlur = 0;
+    ctx.font = `bold 13px Rajdhani`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 0, -sry*2.2);
+  }
+
+  // Red danger pulse
+  if (type === 'red') {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, srx*1.2, sry*1.2, 0, 0, Math.PI*2);
+    ctx.strokeStyle = '#ff2020' + Math.round(40 + 30*Math.sin(frameCount*0.2)).toString(16);
+    ctx.lineWidth = 6;
+    ctx.shadowBlur = 30;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/* ---- Draw Catcher ---- */
+function drawCatcher() {
+  const { x, y, w, h, glow, magnetGlow } = catcher;
+  ctx.save();
+
+  const mg = magnetActive ? 1 : 0;
+  const baseColor = magnetActive ? '#00ff88' : '#00f5ff';
+  const glowColor = magnetActive ? '#00ff88' : '#00f5ff';
+
+  // Glow ring
+  ctx.shadowColor = glowColor;
+  ctx.shadowBlur = 20 + glow*30 + magnetGlow*20;
+
+  // Top ellipse (rim)
+  ctx.beginPath();
+  ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI*2);
+  ctx.strokeStyle = baseColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Basket body (trapezoid)
+  const bw = w*0.35;
+  ctx.beginPath();
+  ctx.moveTo(x - w/2, y);
+  ctx.lineTo(x - bw, y + h*1.2);
+  ctx.lineTo(x + bw, y + h*1.2);
+  ctx.lineTo(x + w/2, y);
+  ctx.strokeStyle = baseColor + 'aa';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+
+  // Net lines
+  for (let i=1;i<=3;i++) {
+    const t = i/4;
+    const lw = w/2 - (w/2 - bw)*t;
+    const ly = y + h*1.2*t;
+    ctx.beginPath();
+    ctx.moveTo(x - lw, ly);
+    ctx.lineTo(x + lw, ly);
+    ctx.strokeStyle = baseColor + '55';
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+  }
+
+  // Magnet indicator
+  if (magnetActive) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, w/2 + 18, h/2 + 6, 0, 0, Math.PI*2);
+    ctx.strokeStyle = '#00ff88' + '60';
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00ff88';
+    ctx.setLineDash([4,4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+}
+
+/* ---- Draw Lives ---- */
+function drawLives() {
+  for (let i=0;i<3;i++) {
+    const filled = i < lives;
+    ctx.save();
+    ctx.shadowColor = filled ? '#ff006e' : '#333';
+    ctx.shadowBlur = filled ? 12 : 0;
+    ctx.font = '16px sans-serif';
+    ctx.globalAlpha = filled ? 1 : 0.3;
+    ctx.fillText('❤️', W/2 - 28 + i*26, H - 12);
+    ctx.restore();
+  }
+}
+
+/* ---- Draw city bg ---- */
+function drawCity() {
+  // Simple procedural city
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  const buildings = [
+    [0,  180,40,120], [35, 160,30,140], [60, 170,45,110],
+    [100,150,35,130], [130,180,25,100], [150,140,50,160],
+    [195,165,30,115], [220,145,40,135], [255,170,35,110],
+    [285,155,45,125], [325,180,30,100], [350,160,40,140],
+    [385,175,30,105], [W-40,150,40,130]
+  ];
+  ctx.fillStyle = '#1a0050';
+  buildings.forEach(([bx,by,bw,bh]) => {
+    ctx.fillRect(bx, H-bh, bw, bh);
+    // windows
+    ctx.fillStyle = '#bf00ff22';
+    for (let wy=H-bh+8;wy<H-10;wy+=12) {
+      for (let wx=bx+4;wx<bx+bw-4;wx+=8) {
+        if (Math.random()>0.4) ctx.fillRect(wx,wy,4,5);
+      }
+    }
+    ctx.fillStyle = '#1a0050';
+  });
+  ctx.restore();
+}
+
+/* ---- Collision check ---- */
+function checkCatch(ring) {
+  const cx = catcher.x, cy = catcher.y;
+  const catchW = magnetActive ? catcher.w * 1.6 : catcher.w;
+  const dx = Math.abs(ring.x - cx);
+  const dy = Math.abs(ring.y - cy);
+  return dx < catchW/2 && dy < catcher.h + 14;
+}
+
+/* ---- Update ---- */
+function update() {
+  frameCount++;
+
+  // Speed ramp
+  speedTimer++;
+  if (speedTimer > 300) {
+    speedTimer = 0;
+    gameSpeed = Math.min(gameSpeed + 0.12, 3.5);
+  }
+
+  // Timers
+  if (magnetActive) { magnetTimer--; if (magnetTimer<=0) magnetActive=false; }
+  if (freezeActive) { freezeTimer--; if (freezeTimer<=0) { freezeActive=false; } }
+
+  // Catcher movement
+  catcher.x += (catcher.targetX - catcher.x) * 0.18;
+  catcher.y = H - 90;
+  catcher.glow = Math.max(0, catcher.glow - 0.05);
+  catcher.magnetGlow = magnetActive ? 0.5 + 0.5*Math.sin(frameCount*0.1) : 0;
+
+  // Spawn
+  const spawnRate = Math.max(40, 90 - gameSpeed*15);
+  if (frameCount % Math.floor(spawnRate) === 0) spawnRing();
+  // Extra ring at high speed
+  if (gameSpeed > 2 && frameCount % Math.floor(spawnRate*1.6) === 0) spawnRing();
+
+  // Update rings
+  const speedMul = freezeActive ? 0.25 : 1;
+  rings.forEach(ring => {
+    if (!ring.caught) {
+      ring.y += ring.speed * speedMul;
+      ring.rotation += 0.02;
+    } else {
+      ring.scale += 0.06;
+      ring.alpha -= 0.08;
+    }
+
+    // Miss
+    if (!ring.caught && !ring.missed && ring.y > H + 40) {
+      ring.missed = true;
+      if (ring.type !== 'red') {
+        // Missed a good ring
+        combo = 0;
+        lives--;
+        shake(10);
+        playMiss();
+        floatText(ring.x, H - 80, 'MISS!', '#ff006e', 20);
+        updateComboDisplay();
+        if (lives <= 0) setTimeout(gameOver, 400);
+      }
+    }
+  });
+
+  // Check catches
+  rings.forEach(ring => {
+    if (ring.caught || ring.missed) return;
+    if (checkCatch(ring)) {
+      ring.caught = true;
+
+      if (ring.type === 'red') {
+        // FAKE ring penalty
+        combo = 0;
+        lives--;
+        shake(12);
+        playMiss();
+        playComboBreak();
+        burst(ring.x, ring.y, '#ff2020', 20);
+        floatText(ring.x, ring.y - 30, '⚠ FAKE!', '#ff2020', 22);
+        updateComboDisplay();
+        if (lives <= 0) setTimeout(gameOver, 400);
+        return;
+      }
+
+      combo++;
+      maxCombo = Math.max(maxCombo, combo);
+      catcher.glow = 1;
+
+      // Score
+      let pts = 10;
+      let isPerfect = Math.abs(ring.x - catcher.x) < 15;
+      if (isPerfect) pts = 20;
+      if (ring.type === 'purple') pts *= 2;
+      pts = Math.round(pts * (1 + (combo-1)*0.1));
+      score += pts;
+
+      // Effects
+      burst(ring.x, ring.y, ring.color, 16);
+      playCatch(combo);
+
+      if (isPerfect) {
+        playPerfect();
+        showFeedback('PERFECT!', '#ffd700', 32);
+        burst(ring.x, ring.y, '#ffd700', 8);
+      } else if (combo > 1) {
+        showFeedback(`${combo}x COMBO`, ring.color, 24);
+      }
+
+      floatText(ring.x, ring.y - 20, `+${pts}`, ring.color);
+
+      // Special effects
+      if (ring.type === 'gold') {
+        sessionCoins++;
+        coins++;
+        localStorage.setItem('nc_coins', coins);
+        floatText(ring.x, ring.y - 50, '💎 +1', '#ffd700', 18);
+        playPowerUp();
+      }
+      if (ring.type === 'purple') {
+        showFeedback('x2 COMBO!', '#bf00ff', 26);
+        burst(ring.x, ring.y, '#bf00ff', 20);
+      }
+      if (ring.type === 'green') {
+        magnetActive = true;
+        magnetTimer = 200;
+        floatText(ring.x, ring.y - 50, '🧲 MAGNET', '#00ff88', 16);
+        playPowerUp();
+      }
+
+      updateComboDisplay();
+      document.getElementById('score-display').textContent = score;
+      document.getElementById('coins-val').textContent = `💎 ${coins}`;
+    }
+  });
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.15;
+    p.vx *= 0.97;
+    p.life -= p.decay;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  floatingTexts.forEach(t => { t.y += t.vy; t.life -= 0.025; });
+  floatingTexts = floatingTexts.filter(t => t.life > 0);
+
+  rings = rings.filter(r => !(r.caught && r.alpha<=0) && !r.missed || r.y < H+60);
+
+  // Stars twinkle
+  stars.forEach(s => { s.a = 0.3 + 0.7*Math.abs(Math.sin(frameCount*s.speed)); });
+
+  // Shake decay
+  if (shakeAmt > 0) shakeAmt *= 0.75;
+
+  // Score display
+  if (score > best) {
+    best = score;
+    localStorage.setItem('nc_best', best);
+    document.getElementById('best-val').textContent = best;
+  }
+}
+
+function showFeedback(text, color, size=28) {
+  const el = document.getElementById('feedback');
+  el.style.transition = 'none';
+  el.textContent = text;
+  el.style.color = color;
+  el.style.fontSize = size+'px';
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%,-50%) scale(1.2)';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.style.transition = 'all 0.4s ease';
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-60%) scale(0.8)';
+  }, 500);
+}
+
+function updateComboDisplay() {
+  const el = document.getElementById('combo-text');
+  if (combo >= 2) {
+    el.textContent = `${combo}x COMBO`;
+    el.className = 'show';
+    el.style.color = combo >= 10 ? '#ffd700' : combo >= 5 ? '#bf00ff' : '#00f5ff';
+  } else {
+    el.className = '';
+  }
+}
+
+/* ---- Draw ---- */
+function draw() {
+  ctx.clearRect(0,0,W,H);
+
+  // Shake offset
+  const sx = shakeAmt > 0.5 ? (Math.random()-0.5)*shakeAmt : 0;
+  const sy = shakeAmt > 0.5 ? (Math.random()-0.5)*shakeAmt*0.5 : 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // Stars
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.fill();
+  });
+
+  // City
+  drawCity();
+
+  // Freeze overlay
+  if (freezeActive) {
+    ctx.fillStyle = 'rgba(0,200,255,0.04)';
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Rings
+  rings.forEach(drawRing);
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life * 0.9;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Floating texts
+  floatingTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = t.life;
+    ctx.shadowColor = t.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = t.color;
+    ctx.font = `bold ${t.size}px Orbitron`;
+    ctx.textAlign = 'center';
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
+  // Catcher
+  drawCatcher();
+
+  // Lives
+  drawLives();
+
+  ctx.restore();
+}
+
+/* ---- Game loop ---- */
+let animId;
+function loop() {
+  if (state !== 'playing') return;
+  update();
+  draw();
+  animId = requestAnimationFrame(loop);
+}
+
+/* ---- Game Over ---- */
+function gameOver() {
+  state = 'gameover';
+  cancelAnimationFrame(animId);
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-best').textContent = best;
+  document.getElementById('go-combo').textContent = maxCombo;
+  document.getElementById('go-coins').textContent = coins;
+  document.getElementById('gameover-screen').classList.remove('hidden');
+  playTone(80,'sawtooth',0.5,0.6);
+}
+
+/* ---- Start ---- */
+function startGame() {
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+
+  score=0; combo=0; maxCombo=0; sessionCoins=0; lives=3;
+  gameSpeed=1; speedTimer=0; frameCount=0;
+  rings=[]; particles=[]; floatingTexts=[];
+  magnetActive=false; freezeActive=false;
+  shakeAmt=0;
+
+  catcher.x = W/2; catcher.targetX = W/2;
+  catcher.glow = 0;
+
+  document.getElementById('score-display').textContent = '0';
+  document.getElementById('best-val').textContent = best;
+  document.getElementById('coins-val').textContent = `💎 ${coins}`;
+  document.getElementById('combo-text').className = '';
+
+  initStars();
+  state = 'playing';
+  loop();
+}
+
+function showStart() {
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+}
+
+/* ---- Initial draw on start screen ---- */
+initStars();
+function drawStartBg() {
+  if (state !== 'start') return;
+  ctx.clearRect(0,0,W,H);
+  stars.forEach(s => {
+    s.a = 0.3 + 0.7*Math.abs(Math.sin(Date.now()*0.001*s.speed));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.fill();
+  });
+  drawCity();
+  requestAnimationFrame(drawStartBg);
+}
+drawStartBg();
+</script>
+</body>
+</html>
